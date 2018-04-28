@@ -1004,6 +1004,7 @@ void multi_do_create_robot(const playernum_t pnum, const ubyte *buf)
 	robotcen->Timer = 0;
 
 	const auto &&obj = create_morph_robot(vmsegptridx(robotcen->segnum), cur_object_loc, type);
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu: robot %u created"), robotcen->segnum, obj.get_unchecked_index());
 	if (obj == object_none)
 		return; // Cannot create object!
 	

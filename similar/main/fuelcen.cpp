@@ -153,6 +153,7 @@ void fuelcen_create(const vmsegptridx_t segp)
 	Station[Num_fuelcenters].segnum = segp;
 	Station[Num_fuelcenters].Timer = -1;
 	Station[Num_fuelcenters].Flag = 0;
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "Station[%u] = {Type : %u, segnum : %hu}"), Num_fuelcenters, Station[Num_fuelcenters].Type, Station[Num_fuelcenters].segnum);
 	Num_fuelcenters++;
 }
 
@@ -181,6 +182,8 @@ static void matcen_create(const vmsegptridx_t segp)
 	RobotCenters[segp->matcen_num].segnum = segp;
 	RobotCenters[segp->matcen_num].fuelcen_num = Num_fuelcenters;
 
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "Station[%u] = {Type : %u, Capacity : %u, segnum : %hu}"), Num_fuelcenters, Station[Num_fuelcenters].Type, Station[Num_fuelcenters].Capacity, Station[Num_fuelcenters].segnum);
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "RobotCenters[%u] = {segnum : %hu, fuelcen_num : %hu}"), segp->matcen_num, RobotCenters[segp->matcen_num].segnum, RobotCenters[segp->matcen_num].fuelcen_num);
 	Num_fuelcenters++;
 }
 
@@ -213,10 +216,16 @@ void trigger_matcen(const vmsegptridx_t segnum)
 	robotcen = &Station[RobotCenters[segp->matcen_num].fuelcen_num];
 
 	if (robotcen->Enabled == 1)
+	{
+		con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u fuelcen_num=%u: Enabled==1"), segnum.get_unchecked_index(), segp->matcen_num, RobotCenters[segp->matcen_num].fuelcen_num);
 		return;
+	}
 
 	if (!robotcen->Lives)
+	{
+		con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u fuelcen_num=%u: Lives==0"), segnum.get_unchecked_index(), segp->matcen_num, RobotCenters[segp->matcen_num].fuelcen_num);
 		return;
+	}
 
 #if defined(DXX_BUILD_DESCENT_II)
 	//	MK: 11/18/95, At insane, matcens work forever!
@@ -234,6 +243,7 @@ void trigger_matcen(const vmsegptridx_t segnum)
 	const auto delta = vm_vec_sub(vcvertptr(segnum->verts[0]), pos);
 	vm_vec_scale_add2(pos, delta, F1_0/2);
 	auto objnum = obj_create( OBJ_LIGHT, 0, segnum, pos, NULL, 0, CT_LIGHT, MT_NONE, RT_NONE );
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u fuelcen_num=%u: activated"), segnum.get_unchecked_index(), segp->matcen_num, RobotCenters[segp->matcen_num].fuelcen_num);
 	if (objnum != object_none) {
 		objnum->lifeleft = MATCEN_LIFE;
 		objnum->ctype.light_info.intensity = i2f(8);	//	Light cast by a fuelcen.
@@ -345,6 +355,51 @@ imobjptridx_t  create_morph_robot( const vmsegptridx_t segp, const vms_vector &o
 
 }
 
+namespace {
+
+class print_rate_limiter
+{
+protected:
+	static bool may_print(time_t &p)
+	{
+		const auto t = time(nullptr);
+		if (p == t)
+			return false;
+		p = t;
+		return true;
+	}
+};
+
+template <unsigned>
+class print_rate_limiter_segment : print_rate_limiter
+{
+	static array<time_t, MAX_SEGMENTS> last_print;
+public:
+	static bool may_print(const segnum_t s)
+	{
+		return print_rate_limiter::may_print(last_print[s]);
+	}
+};
+
+template <unsigned line>
+class print_rate_limiter_global : print_rate_limiter
+{
+	static time_t last_print;
+public:
+	static bool may_print()
+	{
+		return print_rate_limiter::may_print(last_print);
+	}
+};
+
+template <unsigned line>
+array<time_t, MAX_SEGMENTS> print_rate_limiter_segment<line>::last_print;
+
+template <unsigned line>
+time_t print_rate_limiter_global<line>::last_print;
+
+}
+
 //	----------------------------------------------------------------------------------------------------------
 static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotcen, const unsigned numrobotcen)
 {
@@ -367,6 +422,11 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 
 	// Wait until transmorgafier has capacity to make a robot...
 	if ( robotcen->Capacity <= 0 ) {
+		if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+		{
+			const auto &&segp = vmsegptr(robotcen->segnum);
+			con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: Capacity=%i"), robotcen->segnum, segp->matcen_num, robotcen->Capacity);
+		}
 		return;
 	}
 
@@ -374,6 +434,8 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 	matcen_num = segp->matcen_num;
 
 	if ( matcen_num == -1 ) {
+		if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+			con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: matcen_num == -1"), robotcen->segnum, segp->matcen_num);
 		return;
 	}
 
@@ -381,7 +443,11 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 	for (unsigned i = 0;; ++i)
 	{
 		if (i >= (sizeof(mi->robot_flags) / sizeof(mi->robot_flags[0])))
+		{
+			if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+				con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: no robot_flags"), robotcen->segnum, segp->matcen_num);
 			return;
+		}
 		if (mi->robot_flags[i])
 			break;
 	}
@@ -392,6 +458,11 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 		auto &plr = get_local_player();
 		if ((plr.num_robots_level - plr.num_kills_level) >= (Gamesave_num_org_robots + Num_extry_robots))
 		{
+			if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+				con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: num_robots_level=%i num_kills_level=%i Gamesave_num_org_robots=%i Num_extry_robots=%i -> (%i - %i) >= (%i + %i) -> (%i >= %i)"), robotcen->segnum, segp->matcen_num,
+		plr.num_robots_level, plr.num_kills_level, Gamesave_num_org_robots, Num_extry_robots,
+		plr.num_robots_level, plr.num_kills_level, Gamesave_num_org_robots, Num_extry_robots,
+		plr.num_robots_level - plr.num_kills_level, Gamesave_num_org_robots + Num_extry_robots);
 		return;
 		}
 	}
@@ -428,6 +499,8 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 			}
 			if (count > Difficulty_level + 3) {
 				robotcen->Timer /= 2;
+				if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+					con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: count (%i) > Difficulty_level+3 (%i)"), robotcen->segnum, segp->matcen_num, count, Difficulty_level + 3);
 				return;
 			}
 
@@ -440,15 +513,21 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 				count++;
 				if ( count > MAX_OBJECTS )	{
 					Int3();
+					if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+						con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: count (%i) > MAX_OBJECTS"), robotcen->segnum, segp->matcen_num, count);
 					return;
 				}
 				if (objp->type==OBJ_ROBOT) {
 					collide_robot_and_materialization_center(objp);
 					robotcen->Timer = top_time/2;
+					if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+						con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u"), robotcen->segnum, segp->matcen_num);
 					return;
 				} else if (objp->type==OBJ_PLAYER ) {
 					collide_player_and_materialization_center(objp);
 					robotcen->Timer = top_time/2;
+					if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+						con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u"), robotcen->segnum, segp->matcen_num);
 					return;
 				}
 			}
@@ -504,6 +583,8 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 					type = legal_types[(d_rand() * num_types) / 32768];
 
 				const auto &&obj = create_morph_robot(vmsegptridx(robotcen->segnum), cur_object_loc, type );
+				if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+					con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: robot %u created"), robotcen->segnum, segp->matcen_num, obj.get_unchecked_index());
 				if (obj != object_none) {
 					if (Game_mode & GM_MULTI)
 						multi_send_create_robot(numrobotcen, obj, type);
@@ -524,6 +605,8 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 	default:
 		robotcen->Flag = 0;
 		robotcen->Timer = 0;
+		if (print_rate_limiter_segment<__LINE__>::may_print(robotcen->segnum))
+			con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "segment=%hu matcen_num=%u: reset"), robotcen->segnum, segp->matcen_num);
 	}
 }
 
@@ -531,6 +614,8 @@ static void robotmaker_proc(fvmsegptridx &vmsegptridx, FuelCenter *const robotce
 // Called once per frame, replenishes fuel supply.
 void fuelcen_update_all()
 {
+	if (print_rate_limiter_global<__LINE__>::may_print())
+		con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "Num_fuelcenters=%u"), Num_fuelcenters);
 	range_for (auto &&e, enumerate(partial_range(Station, Num_fuelcenters)))
 	{
 		auto &i = e.value;
@@ -643,6 +728,7 @@ fix repaircen_give_shields(const vcsegptr_t segp, fix MaxAmountCanTake)
 //	--------------------------------------------------------------------------------------------
 void disable_matcens(void)
 {
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "Num_fuelcenters=%u"), Num_fuelcenters);
 	range_for (auto &s, partial_range(Station, Num_fuelcenters))
 		if (s.Type == SEGMENT_IS_ROBOTMAKER)
 		{
@@ -662,6 +748,7 @@ void init_all_matcens(void)
 			Station[i].Lives = 3;
 			Station[i].Enabled = 0;
 			Station[i].Disable_time = 0;
+			con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "Station[%" PRIuFAST32 "] activated"), i);
 			//	Make sure this fuelcen is pointed at by a matcen.
 			if (std::find_if(robot_range.begin(), robot_range.end(), [i](const matcen_info &mi) {
 				return mi.fuelcen_num == i;
@@ -682,6 +769,7 @@ void init_all_matcens(void)
 	}
 #endif
 
+	con_printf(CON_NORMAL, DXX_STRINGIZE_FL(__FILE__, __LINE__, "Num_fuelcenters=%u Num_robot_centers=%u"), Num_fuelcenters, Num_robot_centers);
 }
 
 }
