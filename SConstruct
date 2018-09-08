@@ -3588,7 +3588,7 @@ class DXXCommon(LazyObjectConstructor):
 				'variable': EnumVariable,
 				'arguments': (
 					('host_endian', None, 'endianness of host platform', {'allowed_values' : ('little', 'big')}),
-					('host_platform', sys.platform.rstrip('0123456789'), 'cross-compile to specified platform', {'allowed_values' : ('darwin', 'linux', 'openbsd', 'win32')}),
+					('host_platform', sys.platform.rstrip('0123456789'), 'cross-compile to specified platform', {'allowed_values' : ('darwin', 'linux', 'openbsd', 'win32', 'msys')}),
 					('screenshot', 'png', 'screenshot file format', {'allowed_values' : ('none', 'legacy', 'png')}),
 				),
 			},
@@ -3763,7 +3763,7 @@ class DXXCommon(LazyObjectConstructor):
 		@property
 		def ogllibs(self):
 			user_settings = self.user_settings
-			return [user_settings.opengles_lib, user_settings.egl_lib] if user_settings.opengles else ['GL', 'GLU']
+			return [user_settings.opengles_lib, user_settings.egl_lib] if user_settings.opengles else ['opengl32', 'glu32']
 		@staticmethod
 		def get_platform_objects(_empty=()):
 			return _empty

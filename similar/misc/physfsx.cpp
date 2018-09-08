@@ -213,6 +213,7 @@ bool PHYSFSX_init(int argc, char *argv[])
 		con_printf(CON_DEBUG, "PHYSFS: append argument hog directory \"%s\" to search path", p);
 		PHYSFS_addToSearchPath(p, 1);
 	}
+/*
 #ifdef SHAREPATH
 	else if (!CGameArg.SysNoHogDir)
 	{
@@ -220,6 +221,7 @@ bool PHYSFSX_init(int argc, char *argv[])
 		PHYSFS_addToSearchPath(SHAREPATH, 1);
 	}
 #endif
+*/
 	
 	PHYSFSX_addRelToSearchPath("data", 1);	// 'Data' subdirectory
 	
